@@ -54,14 +54,13 @@ def main():
         if args.bootstrap:
             with open(args.bootstrap, 'r') as bootstrap_file:
                 bvars.update(safe_load(bootstrap_file))
-        assert args.gamemode != 'any' and args.gamemode in cfg['gamemodes']
+        assert args.gamemode in cfg['gamemodes']
     except FileNotFoundError as error:
         exit('Config `{}` not found!'.format(error.filename))
     except AssertionError:
         exit('Wrong game mode `{}` specified!'.format(args.gamemode))
 
     smaps = cfg['gamemodes'][args.gamemode]['maps']
-    svars.update(cfg['gamemodes']['any']['vars'])
     svars.update(cfg['gamemodes'][args.gamemode]['vars'])
     if args.fraglimit:
         svars.update({'fraglimit': args.fraglimit})

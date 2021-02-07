@@ -2,10 +2,6 @@ user: quake3
 cmd: /opt/ioquake3/ioq3ded.x86_64 +exec autoexec.cfg
 autoexec: /home/quake3/.q3a/baseq3/autoexec.cfg
 gamemodes:
-  any:
-    vars:
-      fraglimit: 100
-      timelimit: 10
   ffa:
     maps: [
       q3dm2, q3dm3, q3dm4, q3dm5, q3dm6,
