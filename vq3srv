@@ -3,64 +3,24 @@ from argparse import ArgumentParser
 from os import system
 from random import shuffle
 from sys import exit
-
-# TODO: move this shit to a yaml config somewhere in /etc
-USER = 'quake3' # linux user, for sudo -u
-BIN = '/usr/bin/q3ded'
-CONF = '/srv/q3/.q3a/baseq3/autoexec.cfg'
-PARAM = '+exec autoexec.cfg'
-
-MAPLISTS = {
-    'ffa': [
-        'q3dm2', 'q3dm3', 'q3dm4', 'q3dm5', 'q3dm6',
-        'q3dm7', 'q3dm8', 'q3dm9', 'q3dm10', 'q3dm11'
-    ],
-    'duel': [
-        'q3dm1', 'q3dm2', 'pro-q3dm6', 'pro-q3dm13',
-        'q3tourney1', 'q3tourney3', 'q3tourney5', 'q3tourney6',
-        'pro-q3tourney2', 'pro-q3tourney4'
-    ],
-    'ctf': list()
-}
-BOTS = {
-    'level': '3',
-    'names': [
-        'Anarki', 'Angel', 'Crash', 'Doom', 'Hunter',
-        'Klesk', 'Major', 'Mynx', 'Orbb', 'Slash', 'Xaero'
-    ]
-}
-
-
-# these are saved to the q3config_server.cfg on the first run
-# no point in keeping them here afterwards
-BOOTSTRAP_OPTS = dict()
-# BOOTSTRAP_OPTS = {
-#     'sv_pure': '0', # enable client side mods, like better fonts or graphics
-#     'sv_maxclients': '8',
-#     'sv_hostname': 'myhost.tld'
-#
-#     # this will let your server send maps to clients
-#     # the downloads are attempted from http://%sv_dlURL%/baseq3/mapname.pk3
-#     # note the protocol - no support for https,
-#     # as well as the need to have baseq3 as a part of the path
-#     # note that clients have to seta cl_allowDownload 1 for that to work
-#     'sv_dlURL': 'anyhost.tld/q3',
-#     'sv_allowDownloads': '1'
-# }
+from yaml import safe_load
 
 
 def parse_arguments():
     desc = 'host a q3 server'
     parser = ArgumentParser(description=desc)
     parser.add_argument('-m', '--gamemode', default='ffa')
-    parser.add_argument('-f', '--fraglimit', type=int, default=15)
-    parser.add_argument('-t', '--timelimit', type=int, default=10)
+    parser.add_argument('-f', '--fraglimit', type=int)
+    parser.add_argument('-t', '--timelimit', type=int)
     parser.add_argument('-b', '--bots', type=int, default=0)
+    parser.add_argument('-c', '--config', default='config.yml')
+    parser.add_argument('-B', '--bootstrap')
     return parser.parse_args()
 
 
-def gen_confline(param, value):
-    return 'seta {} "{}"\n'.format(param, value)
+def gen_confline(param, value, archive=False):
+    set_cmd = 'seta' if archive else 'set'
+    return '{} {} "{}"\n'.format(set_cmd, param, value)
 
 
 def gen_maplist(maplist):
@@ -87,24 +47,38 @@ def gen_addbots(count, level='3', names=list()):
 
 def main():
     args = parse_arguments()
-    cfg_data = str()
+    cfg_data, bvars, svars = str(), dict(), dict()
     try:
-        assert args.gamemode in MAPLISTS
+        with open(args.config, 'r') as config_file:
+            cfg = safe_load(config_file)
+        if args.bootstrap:
+            with open(args.bootstrap, 'r') as bootstrap_file:
+                bvars.update(safe_load(bootstrap_file))
+        assert args.gamemode != 'any' and args.gamemode in cfg['gamemodes']
+    except FileNotFoundError as error:
+        exit('Config `{}` not found!'.format(error.filename))
     except AssertionError:
-        exit('Wrong game mode specified!')
+        exit('Wrong game mode `{}` specified!'.format(args.gamemode))
 
-    for param in BOOTSTRAP_OPTS:
-        cfg_data += gen_confline(param, BOOTSTRAP_OPTS[param])
-    cfg_data += gen_confline('fraglimit', args.fraglimit)
-    cfg_data += gen_confline('timelimit', args.timelimit)
-    # this should be last since it launches the actual maplist
-    cfg_data += gen_maplist(MAPLISTS[args.gamemode])
+    smaps = cfg['gamemodes'][args.gamemode]['maps']
+    svars.update(cfg['gamemodes']['any']['vars'])
+    svars.update(cfg['gamemodes'][args.gamemode]['vars'])
+    if args.fraglimit:
+        svars.update({'fraglimit': args.fraglimit})
+    if args.timelimit:
+        svars.update({'timelimit': args.timelimit})
+
+    for param in bvars:
+        cfg_data += gen_confline(param, bvars[param], archive=True)
+    for param in svars:
+        cfg_data += gen_confline(param, svars[param])
+    cfg_data += gen_maplist(smaps)
     if args.bots:
-        cfg_data += gen_addbots(args.bots, **BOTS)
+        cfg_data += gen_addbots(args.bots, **cfg['bots'])
 
-    with open(CONF, 'w+') as config:
+    with open(cfg['autoexec'], 'w+') as config:
         config.write(cfg_data)
-    system('sudo -u {} {} {}'.format(USER, BIN, PARAM))
+    system('sudo -u {} {}'.format(cfg['user'], cfg['cmd']))
 
 
 if __name__ == '__main__':

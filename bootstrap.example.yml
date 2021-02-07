@@ -1,0 +1,14 @@
+# these are saved to the q3config_server.cfg, so -B should only be used once really
+# add any config variable with value here as needed,
+# defaults are mostly sensible, so here is a rather small list
+sv_pure: '0'
+sv_maxclients: '8'
+sv_hostname: 'myhost.tld'
+
+# this will let your server send maps to clients
+# the downloads are attempted from http://%sv_dlURL%/baseq3/mapname.pk3
+# note the protocol - no support for https,
+# as well as the need to have baseq3 as a part of the path
+# note that clients have to seta cl_allowDownload 1 for that to work
+sv_dlURL: 'anyhost.tld/q3'
+sv_allowDownloads: '1'
