@@ -1,6 +1,6 @@
 user: quake3
-cmd: /opt/ioquake3/ioq3ded.x86_64 +exec autoexec.cfg
-autoexec: /home/quake3/.q3a/baseq3/autoexec.cfg
+cmd: /opt/ioquake3/ioq3ded.x86_64
+exec: /home/quake3/.q3a/baseq3/autoexec.cfg
 gamemodes:
   ffa:
     maps: [
@@ -19,6 +19,12 @@ gamemodes:
     vars:
       fraglimit: 15
       timelimit: 5
+  cpma_duel:
+    maps: [ q3dm6 ]
+    vars:
+      sv_game: cpma
+      fraglimit: 15
+      timelimit: 15
 bots:
   level: '3'
   names: [
