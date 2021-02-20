@@ -7,15 +7,30 @@ from sys import exit
 from yaml import safe_load
 
 
+GDEFAULTS = {
+    'bots': {
+        'level': 3,
+        'names': ['anarki', 'angel', 'crash', 'doom', 'hunter',
+                  'klesk', 'major', 'mynx', 'orbb', 'slash', 'xaero']
+    }
+}
+MDEFAULTS = {
+    'randomize': True,
+    'vars': {
+        'fraglimit': 30,
+        'timelimit': 15
+    }
+}
+
+
 def parse_arguments():
     desc = 'host a q3 server'
     parser = ArgumentParser(description=desc)
-    parser.add_argument('-m', '--gamemode', default='ffa')
-    parser.add_argument('-f', '--fraglimit', type=int)
-    parser.add_argument('-t', '--timelimit', type=int)
+    parser.add_argument('-m', '--gamemode', default='default')
     parser.add_argument('-b', '--bots', type=int, default=0)
     parser.add_argument('-c', '--config', default='config.yml')
     parser.add_argument('-B', '--bootstrap')
+    parser.add_argument('-d', '--debug', action="store_true")
     return parser.parse_args()
 
 
@@ -24,11 +39,12 @@ def gen_confline(param, value, archive=False):
     return '{} {} "{}"\n'.format(set_cmd, param, value)
 
 
-def gen_maplist(maplist):
-    shuffle(maplist)
+def gen_maplist(maplist, randomize=True):
     num = 1
     stmpl = 'set d{} "map {} ; set nextmap vstr d{}"\n'
     script = str()
+    if randomize:
+        shuffle(maplist)
     while maplist:
         nextnum = 1 if len(maplist) == 1 else num + 1
         script += stmpl.format(num, maplist.pop(), nextnum)
@@ -37,50 +53,67 @@ def gen_maplist(maplist):
     return script
 
 
-def gen_addbots(count, level='3', names=list()):
-    shuffle(names)
+def gen_addbots(count, level, names):
     btmpl = 'addbot {} {}\n'
     script = str()
+    shuffle(names)
     for bot in names[:count]:
         script += btmpl.format(bot, level)
     return script
 
 
-def main():
-    args = parse_arguments()
-    cfg_data, cmd_vars, bvars, svars = str(), list(), dict(), dict()
-    try:
-        with open(args.config, 'r') as config_file:
-            cfg = safe_load(config_file)
-        if args.bootstrap:
-            with open(args.bootstrap, 'r') as bootstrap_file:
-                bvars.update(safe_load(bootstrap_file))
-        assert args.gamemode in cfg['gamemodes']
-        exec_filename = basename(cfg['exec'])
-    except FileNotFoundError as error:
-        exit('Config `{}` not found!'.format(error.filename))
-    except AssertionError:
-        exit('Wrong game mode `{}` specified!'.format(args.gamemode))
-
-    smaps = cfg['gamemodes'][args.gamemode]['maps']
-    svars.update(cfg['gamemodes'][args.gamemode]['vars'])
-    if args.fraglimit:
-        svars.update({'fraglimit': args.fraglimit})
-    if args.timelimit:
-        svars.update({'timelimit': args.timelimit})
+def gen_exec(gcfg, mcfg, bvars=dict(), bot_count=0, debug=False):
+    cfg_data = str()
     for param in bvars:
         cfg_data += gen_confline(param, bvars[param], archive=True)
-    for param in svars:
-        cmd_vars.append('+set {} {}'.format(param, svars[param]))
-    cmd_vars.append('+exec {}'.format(exec_filename))
-    cmd_opts = ' '.join(cmd_vars)
-    cfg_data += gen_maplist(smaps)
-    if args.bots:
-        cfg_data += gen_addbots(args.bots, **cfg['bots'])
+    cfg_data += gen_maplist(mcfg['maps'],
+                            mcfg.get('randomize', MDEFAULTS['randomize']))
+    if bot_count:
+        bot_level = gcfg.\
+            get('bots', GDEFAULTS['bots']).\
+            get('level', GDEFAULTS['bots']['level'])
+        bot_names = gcfg.\
+            get('bots', GDEFAULTS['bots']).\
+            get('names', GDEFAULTS['bots']['names'])
+        cfg_data += gen_addbots(bot_count, bot_level, bot_names)
+    if debug:
+        print('Debug {} contents:\n{}'.format(gcfg['exec'], cfg_data))
+        return
+    try:
+        with open(gcfg['exec'], 'w+') as config:
+            config.write(cfg_data)
+    except FileNotFoundError as error:
+        exit('Config `{}` not found!'.format(error.filename))
 
-    with open(cfg['exec'], 'w+') as config:
-        config.write(cfg_data)
-    system('sudo -u {} {} {}'.format(cfg['user'], cfg['cmd'], cmd_opts))
+
+def main():
+    args = parse_arguments()
+    cfg_data, cmd_list, bvars = str(), list(), dict()
+    try:
+        with open(args.config, 'r') as config_file:
+            gcfg = safe_load(config_file)
+        assert {'user', 'exec', 'cmd'} <= gcfg.keys()
+        mcfg = gcfg['gamemodes'][args.gamemode]
+        assert 'maps' in mcfg
+        if args.bootstrap:
+            with open(args.bootstrap, 'r') as bootstrap_file:
+                bvars = safe_load(bootstrap_file)
+    except FileNotFoundError as error:
+        exit('Config `{}` not found!'.format(error.filename))
+    except (AssertionError, KeyError):
+        exit('Missing required settings in {}!'.format(args.config))
+
+    svars = mcfg.get('vars', MDEFAULTS['vars'])
+    exec_filename = basename(gcfg['exec'])
+
+    for param in svars:
+        cmd_list.append('+set {} {}'.format(param, svars[param]))
+    cmd_list.append('+exec {}'.format(exec_filename))
+    cmd_opts = ' '.join(cmd_list)
+
+    action = print if args.debug else system
+    gen_exec(gcfg, mcfg, bvars, args.bots, args.debug)
+    action('sudo -u {} {} {}'.format(gcfg['user'], gcfg['cmd'], cmd_opts))
 
 
 if __name__ == '__main__':

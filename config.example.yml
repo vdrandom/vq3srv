@@ -2,14 +2,20 @@ user: quake3
 cmd: /opt/ioquake3/ioq3ded.x86_64
 exec: /home/quake3/.q3a/baseq3/autoexec.cfg
 gamemodes:
-  ffa:
+  # names just identifiers, feel free to mix
+  # map types as you see fit
+  default:
+    # the only required option here is maps,
+    # everything else is optional
     maps: [
       q3dm2, q3dm3, q3dm4, q3dm5, q3dm6,
       q3dm7, q3dm8, q3dm9, q3dm10, q3dm11
     ]
+    # any supported var can be set from here
+    # vars is optional, defaults to these:
     vars:
-      fraglimit: 30
-      timelimit: 15
+      fraglimit: 15
+      timelimit: 5
   duel:
     maps: [
       q3dm1, q3dm2, pro-q3dm6, pro-q3dm13,
@@ -22,12 +28,14 @@ gamemodes:
   cpma_duel:
     maps: [ q3dm6 ]
     vars:
-      sv_game: cpma
+      # mods can be used as well
+      fs_game: cpma
       fraglimit: 15
       timelimit: 15
-bots:
-  level: '3'
-  names: [
-    anarki, angel, crash, doom, hunter,
-    klesk, major, mynx, orbb, slash, xaero
-  ]
+# defining bots here is optional, defaults
+# are already defined in the script
+bot_level: 3
+bot_names: [
+  anarki, angel, crash, doom, hunter,
+  klesk, major, mynx, orbb, slash, xaero
+]
